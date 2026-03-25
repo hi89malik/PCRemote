@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PC Remote</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>PC Remote</h1>
+            <div id="status-indicator" class="status online">Connected</div>
+        </header>
+
+        <section class="card power-controls">
+            <h2>Power</h2>
+            <div class="button-grid">
+                <button class="btn btn-danger" onclick="sendPowerCommand('shutdown')">
+                    <svg viewBox="0 0 24 24" fill="none" class="icon"><path d="M12 2v10M18.36 5.64a9 9 0 1 1-12.73 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Shutdown
+                </button>
+                <button class="btn btn-warning" onclick="sendPowerCommand('sleep')">
+                    <svg viewBox="0 0 24 24" fill="none" class="icon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Sleep
+                </button>
+                <button class="btn btn-secondary" onclick="sendPowerCommand('test')">
+                    <svg viewBox="0 0 24 24" fill="none" class="icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Test
+                </button>
+            </div>
+        </section>
+
+        <section class="card keyboard-controls">
+            <h2>Keyboard</h2>
+            <div class="input-group">
+                <input type="text" id="text-input" placeholder="Type something..." onkeypress="checkEnter(event)">
+                <button class="btn btn-primary" onclick="sendText()">Send</button>
+            </div>
+            <div class="quick-keys">
+                <button class="key-btn" onclick="sendKey('Enter')">Enter</button>
+                <button class="key-btn" onclick="sendKey('Backspace')">⌫</button>
+                <button class="key-btn" onclick="sendKey('Space')">Space</button>
+                <button class="key-btn" onclick="sendKey('Escape')">Esc</button>
+            </div>
+            
+            <div class="nav-keys">
+                <button class="key-btn" onclick="sendKey('Up')">▲</button>
+                <div class="nav-row">
+                    <button class="key-btn" onclick="sendKey('Left')">◀</button>
+                    <button class="key-btn" onclick="sendKey('Down')">▼</button>
+                    <button class="key-btn" onclick="sendKey('Right')">▶</button>
+                </div>
+            </div>
+        </section>
+        
+        <section class="card trackpad-controls">
+            <h2>Trackpad</h2>
+            <div id="trackpad" class="trackpad-area">
+                <span>Touch & Drag to Move</span>
+                <span class="sub-text">Tap to Left Click &bull; 2-Finger Tap for Right Click</span>
+            </div>
+            <div class="mouse-buttons">
+                <button class="btn btn-secondary" onclick="sendMouseClick('left')">Left Click</button>
+                <button class="btn btn-secondary" onclick="sendMouseClick('right')">Right Click</button>
+            </div>
+        </section>
+        
+        <div id="toast-container"></div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
