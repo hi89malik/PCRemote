@@ -174,4 +174,5 @@ trackpad.addEventListener('touchend', (e) => {
 
 function sendMouseClick(button, double = false) {
     if (navigator.vibrate) navigator.vibrate(20);
+    socket.emit('mouse_click', { button, double });
 }
