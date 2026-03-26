@@ -1,9 +1,11 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const { exec } = require('child_process');
-const { keyboard, Key, mouse, Point, Button } = require('@nut-tree-fork/nut-js');
+const { keyboard, Key, mouse, Point, Button, screen } = require('@nut-tree-fork/nut-js');
+const sharp = require('sharp');
 const path = require('path');
 const os = require('os');
 
@@ -15,6 +17,28 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+const AUTH_USER = process.env.REMOTE_USERNAME || 'admin';
+const AUTH_PASS = process.env.REMOTE_PASSWORD || 'admin';
+const VALID_TOKEN = Buffer.from(`${AUTH_USER}:${AUTH_PASS}`).toString('base64');
+
+app.use('/api', (req, res, next) => {
+    if (req.path === '/login') return next();
+    const authHeader = req.headers.authorization;
+    if (!authHeader || authHeader !== `Basic ${VALID_TOKEN}`) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    next();
+});
+
+app.post('/api/login', (req, res) => {
+    const { username, password } = req.body;
+    if (username === AUTH_USER && password === AUTH_PASS) {
+        res.json({ success: true, token: `Basic ${VALID_TOKEN}` });
+    } else {
+        res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+});
 
 function getLocalIP() {
     const interfaces = os.networkInterfaces();
@@ -30,7 +54,56 @@ function getLocalIP() {
     return '127.0.0.1';
 }
 
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    if (token === `Basic ${VALID_TOKEN}`) {
+        next();
+    } else {
+        next(new Error('Authentication error'));
+    }
+});
+
 io.on('connection', (socket) => {
+    let streamInterval = null;
+
+    socket.on('start_stream', () => {
+        if (streamInterval) return;
+        streamInterval = setInterval(async () => {
+            try {
+                const img = await screen.grab();
+                
+                // Swap Blue and Red channels to convert BGRA to RGBA for sharp
+                for (let i = 0; i < img.data.length; i += 4) {
+                    const b = img.data[i];
+                    img.data[i] = img.data[i + 2];
+                    img.data[i + 2] = b;
+                }
+
+                const jpegBuffer = await sharp(img.data, {
+                    raw: { width: img.width, height: img.height, channels: 4 }
+                })
+                .resize(1024)
+                .jpeg({ quality: 50 })
+                .toBuffer();
+                
+                socket.emit('screen_frame', jpegBuffer.toString('base64'));
+            } catch (err) {}
+        }, 150); // ~6-7 FPS to be safer on bandwidth
+    });
+
+    socket.on('stop_stream', () => {
+        if (streamInterval) {
+            clearInterval(streamInterval);
+            streamInterval = null;
+        }
+    });
+
+    socket.on('disconnect', () => {
+        if (streamInterval) {
+            clearInterval(streamInterval);
+        }
+    });
+
     socket.on('mouse_move', async (data) => {
         try {
             const { dx, dy } = data;
