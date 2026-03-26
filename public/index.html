@@ -10,7 +10,18 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="app-container">
+    <div id="login-overlay" class="login-overlay" style="display: none;">
+        <div class="login-card">
+            <h2>Authentication Required</h2>
+            <div class="input-group" style="flex-direction: column;">
+                <input type="text" id="login-username" placeholder="Username" onkeypress="checkLoginEnter(event)">
+                <input type="password" id="login-password" placeholder="Password" onkeypress="checkLoginEnter(event)" style="margin-top: 8px;">
+                <button class="btn btn-primary" onclick="submitLogin()" style="width: 100%; margin-top: 16px;">Connect</button>
+            </div>
+            <div id="login-error" style="color: var(--danger); font-size: 0.875rem; display: none; margin-top: 8px; text-align: center;">Invalid credentials</div>
+        </div>
+    </div>
+    <div class="app-container" id="app-container" style="display: none;">
         <header>
             <h1>PC Remote</h1>
             <div id="status-indicator" class="status online">Connected</div>
@@ -32,6 +43,15 @@
                     Test
                 </button>
             </div>
+        </section>
+
+        <section class="card screen-stream-controls">
+            <h2>Screen Stream</h2>
+            <div class="stream-container" style="background: #000; border-radius: 8px; overflow: hidden; min-height: 100px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+                <img id="stream-display" src="" alt="Live Stream" style="display: none; width: 100%; object-fit: contain;">
+                <span id="stream-placeholder" style="color: #666; font-size: 0.9rem;">Stream is offline</span>
+            </div>
+            <button id="stream-toggle-btn" class="btn btn-primary" onclick="toggleStream()" style="width: 100%;">Start Stream</button>
         </section>
 
         <section class="card keyboard-controls">

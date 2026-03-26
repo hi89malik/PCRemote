@@ -3,6 +3,18 @@
 // Ensure we know the API base
 const API_BASE = window.location.origin;
 
+const originalFetch = window.fetch;
+window.fetch = function() {
+    let [resource, config ] = arguments;
+    if(!config) config = {};
+    if(!config.headers) config.headers = {};
+    const token = localStorage.getItem('pc_remote_token');
+    if (token && resource !== `${API_BASE}/api/login`) {
+        config.headers['Authorization'] = token;
+    }
+    return originalFetch(resource, config);
+};
+
 function showToast(message) {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -119,7 +131,79 @@ setInterval(async () => {
 }, 5000);
 
 // --- Trackpad Logic ---
-const socket = io();
+const socket = io({ autoConnect: false });
+
+document.addEventListener('DOMContentLoaded', () => {
+    const token = localStorage.getItem('pc_remote_token');
+    if (token) {
+        verifyTokenAndInit(token);
+    } else {
+        showLogin();
+    }
+});
+
+function showLogin() {
+    document.getElementById('login-overlay').style.display = 'flex';
+    document.getElementById('app-container').style.display = 'none';
+}
+
+function showApp() {
+    document.getElementById('login-overlay').style.display = 'none';
+    document.getElementById('app-container').style.display = 'flex';
+}
+
+function checkLoginEnter(e) {
+    if (e.key === 'Enter') submitLogin();
+}
+
+async function submitLogin() {
+    const user = document.getElementById('login-username').value;
+    const pass = document.getElementById('login-password').value;
+    const errEl = document.getElementById('login-error');
+    
+    try {
+        const res = await originalFetch(`${API_BASE}/api/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: user, password: pass })
+        });
+        const data = await res.json();
+        if (data.success && data.token) {
+            localStorage.setItem('pc_remote_token', data.token);
+            errEl.style.display = 'none';
+            socket.auth = { token: data.token };
+            socket.connect();
+            showApp();
+        } else {
+            errEl.style.display = 'block';
+            errEl.innerText = data.message || 'Invalid credentials';
+        }
+    } catch(e) {
+        errEl.style.display = 'block';
+        errEl.innerText = 'Network error';
+    }
+}
+
+async function verifyTokenAndInit(token) {
+    try {
+        const res = await fetch(`${API_BASE}/api/power`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'ping' })
+        });
+        if (res.ok || res.status === 400) {
+            socket.auth = { token };
+            socket.connect();
+            showApp();
+        } else {
+            localStorage.removeItem('pc_remote_token');
+            showLogin();
+        }
+    } catch(e) {
+        showLogin();
+    }
+}
+
 const trackpad = document.getElementById('trackpad');
 
 let lastTouchPos = null;
@@ -176,3 +260,36 @@ function sendMouseClick(button, double = false) {
     if (navigator.vibrate) navigator.vibrate(20);
     socket.emit('mouse_click', { button, double });
 }
+
+// --- Screen Stream Logic ---
+let isStreaming = false;
+
+function toggleStream() {
+    const btn = document.getElementById('stream-toggle-btn');
+    const img = document.getElementById('stream-display');
+    const placeholder = document.getElementById('stream-placeholder');
+    
+    if (!isStreaming) {
+        socket.emit('start_stream');
+        img.style.display = 'block';
+        placeholder.style.display = 'none';
+        btn.innerText = 'Stop Stream';
+        btn.classList.add('btn-danger');
+        isStreaming = true;
+    } else {
+        socket.emit('stop_stream');
+        img.style.display = 'none';
+        placeholder.style.display = 'block';
+        img.src = '';
+        btn.innerText = 'Start Stream';
+        btn.classList.remove('btn-danger');
+        isStreaming = false;
+    }
+}
+
+socket.on('screen_frame', (base64ImageData) => {
+    if (isStreaming) {
+        const img = document.getElementById('stream-display');
+        img.src = 'data:image/jpeg;base64,' + base64ImageData;
+    }
+});
