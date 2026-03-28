@@ -320,3 +320,55 @@ input[type="password"] {
 input[type="password"]:focus {
     border-color: var(--primary);
 }
+
+/* File Explorer */
+.file-explorer-controls {
+    display: flex;
+    flex-direction: column;
+}
+.current-path {
+    background: rgba(15, 23, 42, 0.6);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    word-break: break-all;
+}
+.file-list {
+    list-style: none;
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    background: #0f172a;
+}
+.file-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+}
+.file-item:last-child {
+    border-bottom: none;
+}
+.file-item:active {
+    background: #1e293b;
+}
+.file-icon {
+    font-size: 1.2rem;
+    margin-right: 12px;
+}
+.file-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.file-size {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}

@@ -195,6 +195,7 @@ async function verifyTokenAndInit(token) {
             socket.auth = { token };
             socket.connect();
             showApp();
+            loadDirectory();
         } else {
             localStorage.removeItem('pc_remote_token');
             showLogin();
@@ -213,48 +214,53 @@ let totalMovement = 0;
 let initialTouches = 0;
 const SENSITIVITY = 1.8;
 
-trackpad.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    initialTouches = e.touches.length;
-    lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    touchStartTime = Date.now();
-    moved = false;
-    totalMovement = 0;
-}, { passive: false });
-
-trackpad.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    if (e.touches.length === 1 && lastTouchPos) {
-        const rawDx = e.touches[0].clientX - lastTouchPos.x;
-        const rawDy = e.touches[0].clientY - lastTouchPos.y;
-        totalMovement += Math.abs(rawDx) + Math.abs(rawDy);
-        
-        const dx = rawDx * SENSITIVITY;
-        const dy = rawDy * SENSITIVITY;
-        socket.emit('mouse_move', { dx, dy });
-        if (totalMovement > 15) moved = true; 
+const bindTrackpad = (el) => {
+    el.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        initialTouches = e.touches.length;
         lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    } else if (e.touches.length === 2 && lastTouchPos) {
-        const dy = (e.touches[0].clientY - lastTouchPos.y);
-        totalMovement += Math.abs(dy);
-        if (totalMovement > 15) moved = true;
-        
-        if (dy > 0) socket.emit('mouse_scroll', { dir: 'up', amount: dy });
-        else socket.emit('mouse_scroll', { dir: 'down', amount: -dy });
-        lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    }
-}, { passive: false });
+        touchStartTime = Date.now();
+        moved = false;
+        totalMovement = 0;
+    }, { passive: false });
 
-trackpad.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    const duration = Date.now() - touchStartTime;
-    // Tap to click
-    if (!moved && duration < 250) {
-        if (initialTouches === 1) sendMouseClick('left');
-        else if (initialTouches === 2) sendMouseClick('right');
-    }
-    if (e.touches.length === 0) lastTouchPos = null;
-}, { passive: false });
+    el.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 1 && lastTouchPos) {
+            const rawDx = e.touches[0].clientX - lastTouchPos.x;
+            const rawDy = e.touches[0].clientY - lastTouchPos.y;
+            totalMovement += Math.abs(rawDx) + Math.abs(rawDy);
+            
+            const dx = rawDx * SENSITIVITY;
+            const dy = rawDy * SENSITIVITY;
+            socket.emit('mouse_move', { dx, dy });
+            if (totalMovement > 15) moved = true; 
+            lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        } else if (e.touches.length === 2 && lastTouchPos) {
+            const dy = (e.touches[0].clientY - lastTouchPos.y);
+            totalMovement += Math.abs(dy);
+            if (totalMovement > 15) moved = true;
+            
+            if (dy > 0) socket.emit('mouse_scroll', { dir: 'up', amount: dy });
+            else socket.emit('mouse_scroll', { dir: 'down', amount: -dy });
+            lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
+    }, { passive: false });
+
+    el.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        const duration = Date.now() - touchStartTime;
+        // Tap to click
+        if (!moved && duration < 250) {
+            if (initialTouches === 1) sendMouseClick('left');
+            else if (initialTouches === 2) sendMouseClick('right');
+        }
+        if (e.touches.length === 0) lastTouchPos = null;
+    }, { passive: false });
+};
+
+bindTrackpad(trackpad);
+bindTrackpad(document.getElementById('stream-display'));
 
 function sendMouseClick(button, double = false) {
     if (navigator.vibrate) navigator.vibrate(20);
@@ -287,9 +293,115 @@ function toggleStream() {
     }
 }
 
+function switchDisplay(index) {
+    if (socket) socket.emit('switch_monitor', parseInt(index));
+}
+
+function enterFullscreen() {
+    const container = document.getElementById('stream-display');
+    if (container.requestFullscreen) {
+        container.requestFullscreen().catch(e => console.error(e));
+    } else if (container.webkitRequestFullscreen) {
+        container.webkitRequestFullscreen();
+    }
+}
+
+socket.on('displays_info', (monitors) => {
+    const select = document.getElementById('display-selector');
+    if (!select) return;
+    select.innerHTML = '';
+    monitors.forEach((m, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.innerText = `Display ${i + 1} (${m.Width}x${m.Height})`;
+        select.appendChild(opt);
+    });
+});
+
 socket.on('screen_frame', (base64ImageData) => {
     if (isStreaming) {
         const img = document.getElementById('stream-display');
         img.src = 'data:image/jpeg;base64,' + base64ImageData;
     }
 });
+
+// --- File Explorer Logic ---
+async function loadDirectory(dirPath = '') {
+    try {
+        const url = dirPath ? `${API_BASE}/api/files?dir=${encodeURIComponent(dirPath)}` : `${API_BASE}/api/files`;
+        const res = await originalFetch(url, { headers: { 'Authorization': localStorage.getItem('pc_remote_token') || '' } });
+        const data = await res.json();
+        if (data.success) {
+            renderFileList(data);
+        } else {
+            showToast(`Error: ${data.message}`);
+        }
+    } catch(e) {
+        showToast('Failed to load file directory.');
+    }
+}
+
+function renderFileList(data) {
+    const listEl = document.getElementById('file-list');
+    const pathEl = document.getElementById('file-explorer-path');
+    
+    pathEl.innerText = data.currentPath || '';
+    listEl.innerHTML = '';
+    
+    if (data.parentPath) {
+        const li = document.createElement('li');
+        li.className = 'file-item';
+        li.innerHTML = `<span class="file-icon">📁</span><span class="file-name">.. (Up)</span>`;
+        li.onclick = () => loadDirectory(data.parentPath);
+        listEl.appendChild(li);
+    }
+    
+    data.items.forEach(item => {
+        const li = document.createElement('li');
+        li.className = 'file-item';
+        const icon = item.isDirectory ? '📁' : '📄';
+        let sizeText = '';
+        if (!item.isDirectory) {
+            if (item.size > 1024 * 1024 * 1024) sizeText = (item.size / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+            else if (item.size > 1024 * 1024) sizeText = (item.size / (1024 * 1024)).toFixed(1) + ' MB';
+            else if (item.size > 1024) sizeText = (item.size / 1024).toFixed(0) + ' KB';
+            else sizeText = item.size + ' B';
+        }
+        
+        li.innerHTML = `<span class="file-icon">${icon}</span>
+                        <span class="file-name">${item.name}</span>
+                        <span class="file-size">${sizeText}</span>`;
+        if (item.isDirectory) {
+            li.onclick = () => loadDirectory(item.path);
+        } else {
+            li.onclick = () => downloadFile(item.path, item.name);
+        }
+        listEl.appendChild(li);
+    });
+}
+
+async function downloadFile(filePath, fileName) {
+    showToast(`Downloading ${fileName}...`);
+    try {
+        const url = `${API_BASE}/api/download?file=${encodeURIComponent(filePath)}`;
+        const res = await originalFetch(url, { headers: { 'Authorization': localStorage.getItem('pc_remote_token') || '' } });
+        if (!res.ok) throw new Error('Download failed');
+        
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = downloadUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        
+        setTimeout(() => {
+            window.URL.revokeObjectURL(downloadUrl);
+            document.body.removeChild(a);
+        }, 100);
+        showToast('Download complete');
+    } catch(e) {
+        showToast('Error downloading file');
+    }
+}
