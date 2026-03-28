@@ -6,6 +6,7 @@ A robust, cross-platform remote control application that enables you to manage y
 - **Live Screen Streaming**: Experience near zero-latency desktop viewing via WebSockets and native BGRA-to-RGBA image processing.
 - **Trackpad & Gestures**: Use your phone screen as a responsive mouse with single-tap (left click), two-finger tap (right click), and smooth scrolling. 
 - **Keyboard Input**: Send native keystrokes, navigate with arrow keys, or send full strings of text directly to the host.
+- **Remote File Explorer**: Browse your host PC's Home Directory from your phone and securely download massive files directly to your mobile device's local storage.
 - **Power Management**: Remotely shutdown, sleep, or restart your system.
 - **Secure Authentication**: Locked-down API and WebSocket layers using static `Basic Auth` initialized dynamically from a `.env` file. Unauthorized devices cannot control or view your desktop.
 

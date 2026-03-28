@@ -4,10 +4,11 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const { exec } = require('child_process');
-const { keyboard, Key, mouse, Point, Button, screen } = require('@nut-tree-fork/nut-js');
-const sharp = require('sharp');
+const { keyboard, Key, mouse, Point, Button } = require('@nut-tree-fork/nut-js');
+const screenshot = require('screenshot-desktop');
 const path = require('path');
 const os = require('os');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -21,6 +22,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 const AUTH_USER = process.env.REMOTE_USERNAME || 'admin';
 const AUTH_PASS = process.env.REMOTE_PASSWORD || 'admin';
 const VALID_TOKEN = Buffer.from(`${AUTH_USER}:${AUTH_PASS}`).toString('base64');
+
+let displays = [];
+screenshot.listDisplays().then(d => { displays = d; }).catch(console.error);
 
 app.use('/api', (req, res, next) => {
     if (req.path === '/login') return next();
@@ -37,6 +41,62 @@ app.post('/api/login', (req, res) => {
         res.json({ success: true, token: `Basic ${VALID_TOKEN}` });
     } else {
         res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+});
+
+// File Explorer Endpoints
+app.get('/api/files', (req, res) => {
+    try {
+        const rootDir = os.homedir();
+        let targetDir = req.query.dir || rootDir;
+        targetDir = path.resolve(targetDir);
+
+        if (!targetDir.startsWith(rootDir)) {
+            return res.status(403).json({ success: false, message: 'Access denied outside home directory.' });
+        }
+        if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
+            return res.status(404).json({ success: false, message: 'Directory not found.' });
+        }
+
+        const items = fs.readdirSync(targetDir);
+        const fileList = items.map(item => {
+            try {
+                const itemPath = path.join(targetDir, item);
+                const stat = fs.statSync(itemPath);
+                return {
+                    name: item,
+                    isDirectory: stat.isDirectory(),
+                    size: stat.size,
+                    path: itemPath
+                };
+            } catch (e) { return null; }
+        }).filter(Boolean).sort((a, b) => {
+            if (a.isDirectory === b.isDirectory) return a.name.localeCompare(b.name);
+            return a.isDirectory ? -1 : 1;
+        });
+
+        const parentDir = targetDir === rootDir ? null : path.dirname(targetDir);
+        res.json({ success: true, currentPath: targetDir, parentPath: parentDir, items: fileList });
+    } catch(e) {
+        res.status(500).json({ success: false, message: 'File system error', error: e.message });
+    }
+});
+
+app.get('/api/download', (req, res) => {
+    try {
+        const rootDir = os.homedir();
+        const targetFile = path.resolve(req.query.file || '');
+
+        if (!targetFile.startsWith(rootDir)) {
+            return res.status(403).json({ success: false, message: 'Access denied.' });
+        }
+        if (!fs.existsSync(targetFile) || !fs.statSync(targetFile).isFile()) {
+            return res.status(404).json({ success: false, message: 'File not found.' });
+        }
+
+        res.download(targetFile);
+    } catch(e) {
+        res.status(500).json({ success: false, message: 'Download error', error: e.message });
     }
 });
 
@@ -65,28 +125,22 @@ io.use((socket, next) => {
 
 io.on('connection', (socket) => {
     let streamInterval = null;
+    let activeDisplayId = displays.length > 0 ? displays[0].id : undefined;
+
+    socket.emit('displays_info', displays.map(d => ({ Width: d.width, Height: d.height })));
+
+    socket.on('switch_monitor', (index) => {
+        if (displays[index]) {
+            activeDisplayId = displays[index].id;
+        }
+    });
 
     socket.on('start_stream', () => {
         if (streamInterval) return;
         streamInterval = setInterval(async () => {
             try {
-                const img = await screen.grab();
-                
-                // Swap Blue and Red channels to convert BGRA to RGBA for sharp
-                for (let i = 0; i < img.data.length; i += 4) {
-                    const b = img.data[i];
-                    img.data[i] = img.data[i + 2];
-                    img.data[i + 2] = b;
-                }
-
-                const jpegBuffer = await sharp(img.data, {
-                    raw: { width: img.width, height: img.height, channels: 4 }
-                })
-                .resize(1024)
-                .jpeg({ quality: 50 })
-                .toBuffer();
-                
-                socket.emit('screen_frame', jpegBuffer.toString('base64'));
+                const imgBuffer = await screenshot({ screen: activeDisplayId, format: 'jpg' });
+                socket.emit('screen_frame', imgBuffer.toString('base64'));
             } catch (err) {}
         }, 150); // ~6-7 FPS to be safer on bandwidth
     });
