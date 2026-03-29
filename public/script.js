@@ -196,6 +196,8 @@ async function verifyTokenAndInit(token) {
             socket.connect();
             showApp();
             loadDirectory();
+            fetchVolume();
+            loadTasks();
         } else {
             localStorage.removeItem('pc_remote_token');
             showLogin();
@@ -403,5 +405,103 @@ async function downloadFile(filePath, fileName) {
         showToast('Download complete');
     } catch(e) {
         showToast('Error downloading file');
+    }
+}
+
+// --- Media & Volume Logic ---
+let volumeTimeout;
+
+async function fetchVolume() {
+    try {
+        const res = await originalFetch(`${API_BASE}/api/volume`, { headers: { 'Authorization': localStorage.getItem('pc_remote_token') || '' } });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('volume-slider').value = data.volume;
+        }
+    } catch(e) {}
+}
+
+function setVolume(val) {
+    clearTimeout(volumeTimeout);
+    volumeTimeout = setTimeout(async () => {
+        try {
+            await originalFetch(`${API_BASE}/api/volume`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': localStorage.getItem('pc_remote_token') || '' },
+                body: JSON.stringify({ level: parseInt(val) })
+            });
+        } catch(e) {}
+    }, 100);
+}
+
+async function sendMediaAction(action) {
+    if (navigator.vibrate) navigator.vibrate(20);
+    try {
+        await originalFetch(`${API_BASE}/api/media`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': localStorage.getItem('pc_remote_token') || '' },
+            body: JSON.stringify({ action })
+        });
+        if (action === 'mute') fetchVolume();
+    } catch(e) {}
+}
+
+// --- Task Manager Logic ---
+async function loadTasks() {
+    const listEl = document.getElementById('task-list');
+    listEl.innerHTML = '<li style="color: var(--text-muted); text-align: center; padding: 12px 0;">Loading tasks...</li>';
+    
+    try {
+        const res = await originalFetch(`${API_BASE}/api/tasks`, { headers: { 'Authorization': localStorage.getItem('pc_remote_token') || '' } });
+        const data = await res.json();
+        
+        listEl.innerHTML = '';
+        if (data.success && data.tasks.length > 0) {
+            data.tasks.forEach(task => {
+                const li = document.createElement('li');
+                li.className = 'task-item';
+                const mb = (task.WorkingSet / (1024 * 1024)).toFixed(1);
+                
+                li.innerHTML = `
+                    <div class="task-info">
+                        <span class="task-name">${task.MainWindowTitle}</span>
+                        <span class="task-meta">${task.ProcessName}.exe • ${mb} MB</span>
+                    </div>
+                    <button class="task-kill-btn" onclick="killTask(${task.Id}, this)">Kill</button>
+                `;
+                listEl.appendChild(li);
+            });
+        } else {
+            listEl.innerHTML = '<li style="color: var(--text-muted); text-align: center; padding: 12px 0;">No active tasks found</li>';
+        }
+    } catch(e) {
+        listEl.innerHTML = '<li style="color: #ef4444; text-align: center; padding: 12px 0;">Failed to load tasks</li>';
+    }
+}
+
+async function killTask(pid, btnEl) {
+    if (!confirm('Are you sure you want to force close this program?')) return;
+    
+    const originalText = btnEl.innerText;
+    btnEl.innerText = 'Killing...';
+    btnEl.disabled = true;
+    
+    try {
+        const res = await originalFetch(`${API_BASE}/api/kill`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': localStorage.getItem('pc_remote_token') || '' },
+            body: JSON.stringify({ pid })
+        });
+        const data = await res.json();
+        if (data.success) {
+            btnEl.closest('li').style.display = 'none';
+            showToast('Program closed');
+        } else {
+            throw new Error(data.message);
+        }
+    } catch(e) {
+        btnEl.innerText = originalText;
+        btnEl.disabled = false;
+        showToast('Failed to close program');
     }
 }

@@ -9,6 +9,7 @@ const screenshot = require('screenshot-desktop');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const loudness = require('loudness');
 
 const app = express();
 const server = http.createServer(app);
@@ -41,6 +42,80 @@ app.post('/api/login', (req, res) => {
         res.json({ success: true, token: `Basic ${VALID_TOKEN}` });
     } else {
         res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+});
+
+// Media & Volume Endpoints
+app.get('/api/volume', async (req, res) => {
+    try {
+        const vol = await loudness.getVolume();
+        res.json({ success: true, volume: vol });
+    } catch(e) {
+        res.status(500).json({ success: false, message: 'Failed to get volume' });
+    }
+});
+
+app.post('/api/volume', async (req, res) => {
+    try {
+        const { level } = req.body;
+        if (typeof level === 'number' && level >= 0 && level <= 100) {
+            await loudness.setVolume(level);
+            res.json({ success: true });
+        } else {
+            res.status(400).json({ success: false, message: 'Invalid volume level' });
+        }
+    } catch(e) {
+        res.status(500).json({ success: false, message: 'Failed to set volume' });
+    }
+});
+
+app.post('/api/media', async (req, res) => {
+    try {
+        const { action } = req.body;
+        if (action === 'play') await keyboard.type(Key.AudioPlay);
+        else if (action === 'next') await keyboard.type(Key.AudioNext);
+        else if (action === 'prev') await keyboard.type(Key.AudioPrev);
+        else if (action === 'mute') {
+            const muted = await loudness.getMuted();
+            await loudness.setMuted(!muted);
+        }
+        res.json({ success: true });
+    } catch(e) {
+        res.status(500).json({ success: false, message: 'Media action failed' });
+    }
+});
+
+// Task Manager Endpoints
+app.get('/api/tasks', (req, res) => {
+    try {
+        const ps = `Get-Process | Where-Object {$_.MainWindowTitle} | Select-Object Id, ProcessName, MainWindowTitle, WorkingSet | ConvertTo-Json -Compress`;
+        const out = exec(`powershell -NoProfile -Command "${ps}"`, { encoding: 'utf8' }, (error, stdout, stderr) => {
+            if (error) {
+                return res.status(500).json({ success: false, message: 'Failed to fetch tasks', error: error.message });
+            }
+            let tasks = [];
+            if (stdout.trim()) {
+                const parsed = JSON.parse(stdout);
+                tasks = Array.isArray(parsed) ? parsed : [parsed];
+            }
+            res.json({ success: true, tasks: tasks });
+        });
+    } catch(e) {
+        res.status(500).json({ success: false, message: 'Failed to execute query', error: e.message });
+    }
+});
+
+app.post('/api/kill', (req, res) => {
+    try {
+        const { pid } = req.body;
+        if (pid) {
+            process.kill(pid, 'SIGKILL');
+            res.json({ success: true });
+        } else {
+            res.status(400).json({ success: false, message: 'No PID provided' });
+        }
+    } catch(e) {
+        res.status(500).json({ success: false, message: 'Failed to kill process', error: e.message });
     }
 });
 
