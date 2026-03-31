@@ -70,6 +70,31 @@
             </ul>
         </section>
 
+        <section class="card media-controls">
+            <h2>Media & Volume</h2>
+            <div class="volume-container" style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                <span>🔈</span>
+                <input type="range" id="volume-slider" class="volume-slider" min="0" max="100" value="50" style="flex: 1;" oninput="setVolume(this.value)">
+                <span>🔊</span>
+            </div>
+            <div class="media-buttons" style="display: flex; gap: 8px; justify-content: space-between;">
+                <button class="btn btn-secondary" onclick="sendMediaAction('prev')" style="flex: 1; padding: 12px 0;">⏮️</button>
+                <button class="btn btn-primary" onclick="sendMediaAction('play')" style="flex: 1; padding: 12px 0;">⏯️</button>
+                <button class="btn btn-secondary" onclick="sendMediaAction('next')" style="flex: 1; padding: 12px 0;">⏭️</button>
+                <button class="btn btn-secondary" onclick="sendMediaAction('mute')" style="flex: 1; padding: 12px 0;">🔇</button>
+            </div>
+        </section>
+
+        <section class="card task-manager-controls">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h2 style="margin: 0;">Task Manager</h2>
+                <button class="btn btn-secondary" onclick="loadTasks()" style="padding: 6px 12px; font-size: 0.8rem;">🔄 Refresh</button>
+            </div>
+            <ul class="task-list" id="task-list">
+                <li style="color: var(--text-muted); text-align: center; padding: 12px 0;">Loading tasks...</li>
+            </ul>
+        </section>
+
         <section class="card keyboard-controls">
             <h2>Keyboard</h2>
             <div class="input-group">

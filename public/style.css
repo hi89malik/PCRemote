@@ -372,3 +372,76 @@ input[type="password"]:focus {
     font-size: 0.75rem;
     color: var(--text-muted);
 }
+
+/* Media Controls */
+.volume-slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    outline: none;
+}
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--primary);
+    cursor: pointer;
+}
+
+/* Task Manager */
+.task-list {
+    list-style: none;
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    background: #0f172a;
+}
+.task-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.9rem;
+}
+.task-item:last-child {
+    border-bottom: none;
+}
+.task-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.task-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+}
+.task-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.task-kill-btn {
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    margin-left: 12px;
+    transition: background 0.2s;
+}
+.task-kill-btn:active {
+    background: #dc2626;
+}
